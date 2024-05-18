@@ -1,5 +1,6 @@
 const router = require('express').Router();
-const { Category, Product } = require('../../models');
+const { Category, Product, ProductTag } = require('../../models');
+const sequelize = require('../../config/connection'); // Import Sequelize
 
 // The `/api/categories` endpoint
 
@@ -63,8 +64,57 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
   // delete a category by its `id` value
+  try {
+    // const productTagsToRemove = await ProductTag.destroy({
+    //   where: {
+    //     product_id: req.params.id
+    //   }
+    // });
+
+
+    const categoryId = req.params.id; // Get the category ID from request parameters
+
+    const sqlQuery = `
+      DELETE FROM product_tag 
+      WHERE product_id IN (
+        SELECT p.id FROM product p 
+        WHERE p.category_id = :categoryId
+      )
+    `;
+
+    // Execute the raw SQL query
+    await sequelize.query(sqlQuery, {
+      replacements: { categoryId: categoryId }, // Use replacements to safely insert the parameter
+      type: sequelize.QueryTypes.DELETE // Specify the query type
+    });
+
+    // Delete the product after deleting the product tag
+    const productToRemove = await Product.destroy({
+      where: {
+        category_id: req.params.id
+      }
+    });
+
+    const categoryToRemove = await Category.destroy({
+      where: {
+        id: req.params.id
+      }
+    });
+
+    if (!categoryToRemove) {
+      res.status(404).json({ message: 'No category found with this id!' });
+      return;
+    }
+
+    res.status(200).json({ message: 'Category and its products and tags have been deleted successfully.' });
+  } catch (err) {
+    console.log(err)
+    res.status(500).json(err);
+  }
 });
+
+
 
 module.exports = router;

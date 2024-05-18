@@ -114,8 +114,35 @@ router.put('/:id', (req, res) => {
     });
 });
 
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
   // delete one product by its `id` value
+  try {
+    const productTagsToRemove = await ProductTag.destroy({
+      where: {
+        product_id: req.params.id
+      }
+    });
+
+    if (!productTagsToRemove) {
+      res.status(404).json({ message: 'No tags found with this id!' });
+      return;
+    }
+    // Delete the product after deleting the product tag
+    const productToRemove = await Product.destroy({
+      where: {
+        id: req.params.id
+      }
+    });
+
+    if (!productToRemove) {
+      res.status(404).json({ message: 'No product found with this id!' });
+      return;
+    }
+
+    res.status(200).json({ message: 'Product and its tags have been deleted successfully.' });
+  } catch (err) {
+    res.status(500).json(err);
+  }
 });
 
 module.exports = router;
